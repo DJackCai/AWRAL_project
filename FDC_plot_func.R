@@ -1,6 +1,8 @@
-FDC_plot_func <-function(num_quantiles,obs, OL, DA, mainstring )
+FDC_plot_func <-function(num_quantiles,obs, OL, DA, spinup = 90, mainstring )
 { 
-  
+  obs = obs[-c(1:spinup)]
+  OL = OL[-c(1:spinup)]
+  DA = DA[-c(1:spinup)]
   
   quantiles <- ppoints(num_quantiles)  ### pick percentiles to approximate the cdf
   quantile_OL <- quantile(OL,probs=quantiles, na.rm=T)
@@ -21,7 +23,7 @@ FDC_plot_func <-function(num_quantiles,obs, OL, DA, mainstring )
 ## DA reduces overall bias but bad at other metrics 
 
 
-FDC_plot_func(500, obs = Qobs_403222$Q[-c(1:97)], 
-              OL = Qtot_403222_Qcalib_v9414[-c(1:97)], 
-              DA = Qtot_403222_QEnKF[-c(1:97)], 
+FDC_plot_func(500, obs = Qobs_403222$Q,  
+              OL = Qtot_403222_Qcalib_v9414, 
+              DA = Qtot_403222_QEnKF, 
               mainstring = "Flow duration curve at Morse Ck (403222)")
