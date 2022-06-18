@@ -6,6 +6,9 @@ AWRAL_TimeStep = function(forcing, state, par) {
   ### "forcing" contains the forcing data
   ### "out" contains the output variables
   
+  # 18 June: where it gets updated - store infiltration excess and saturation excess 
+  # to improve understanding of hydrologic behaviour
+  
   #Assign forcing variables
   
   Pg   = forcing$Pg       # Daily precip (mm)
