@@ -1,6 +1,7 @@
 FDC_plot_func <-function(num_quantiles,obs, OL, DA, mainstring )
 { 
   
+  
   quantiles <- ppoints(num_quantiles)  ### pick percentiles to approximate the cdf
   quantile_OL <- quantile(OL,probs=quantiles, na.rm=T)
   quantile_DA <- quantile(DA,probs=quantiles, na.rm=T)
