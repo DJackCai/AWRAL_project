@@ -124,11 +124,12 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
   
   print("-------- Pre-processing of SMAP data have been finished -----------")
   
-  ##### EnKF module #####
+           ########## EnKF module #########
   
-  STATES = initial_states(PARAMS = PARAMS, N_GRID = N_GRID, meanP = meanP)
-  NL <- dim(PG)[1] 
-  FORCING = empty_forcing()
+  STATES = STATES_unpert = initial_states(PARAMS = PARAMS,N_GRID = N_GRID, meanP = meanP)
+  NL =  dim(PG)[1] 
+  FORCING = FORCING_Unpert = empty_forcing()
+  
   
   # 1) state variable matrix, evolving at each time ######
   
@@ -191,6 +192,8 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
   
   Innov_mean = Innov_median = Innov_75 = Innov_25 = matrix(NA,store_length,N_GRID)
   
+  BIAS_S01 = BIAS_S02 = BIAS_Ss1 = BIAS_Ss2 = matrix(NA,store_length,N_GRID)
+  
   
   listnames = 1:N_GRID
   w0_ensemble  = sapply(listnames, function(x) NULL)
@@ -221,12 +224,24 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
         Xa_Ss1[,i] = pmax(pmin(Xa_Ss1[,i],PARAMS$SsFC[1,i]),0.01)
         Xa_Ss2[,i] = pmax(pmin(Xa_Ss2[,i],PARAMS$SsFC[2,i]),0.01)
       }
+      ## unperturbed run 
+      FORCING_Unpert$Pg = rbind(Pg,Pg)
+      FORCING_Unpert$Rg = rbind(Rg,Rg)
+      FORCING_Unpert$Ta = rbind(Ta,Ta)
+      
+      STATES_unpert$S0    = rbind(apply(Xa_S01,2,mean),apply(Xa_S02,2,mean))
+      STATES_unpert$Ss    = rbind(apply(Xa_Ss1,2,mean),apply(Xa_Ss2,2,mean))
+      STATES_unpert$Sd    = rbind(apply(Xa_Sd1,2,mean),apply(Xa_Sd2,2,mean))
+      STATES_unpert$Sg    = apply(Xa_Sg,2,mean)
+      STATES_unpert$Sr    = apply(Xa_Sr,2,mean)
+      STATES_unpert$Mleaf = rbind(apply(Xa_Mleaf1,2,mean),apply(Xa_Mleaf2,2,mean))
+      
+      OUT_unpert = AWRAL_TimeStep(FORCING_Unpert,STATES_unpert,PARAMS)
       
       ### Perturbation of forcing for each ensemble member 
       FORCING$pe   = rbind(PE[k,],PE[k,])
       FORCING$pair = PAIR
       FORCING$u2   = rbind(U2[k,],U2[k,])
-      
       # perturbation
       Pg = PG[k,]; Rg = RG[k,];  Ta = TA[k,]
       RAIN_L = (1-Rain_Err)*Pg;     RAIN_H = (1+Rain_Err)*Pg
@@ -272,7 +287,6 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
         Xf_S0mean[j,] = OUT$S0mean
         ET_f[j, ]     = OUT$ETmean
         FSAT_f[j, ] = OUT$fsat
-        # hXf_w0[j,] = OUT$wunsat
         
         stopifnot(length(OUT$S0mean)==length(AWRA_S0min))
         hXf_w0[j, ] = (OUT$S0mean-AWRA_S0min)/(AWRA_S0max-AWRA_S0min)
@@ -300,6 +314,37 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
       Xa_Sg  = Xf_Sg;    Xa_Sr  = Xf_Sr
       Xa_Mleaf1 = Xf_Mleaf1;      Xa_Mleaf2 = Xf_Mleaf2
       
+      ## Bias correction for forecast model states ####
+      
+      Bias_S01 = apply(Xf_S01,2,mean) - OUT_unpert$S0[1,]
+      Bias_S02 = apply(Xf_S02,2,mean) - OUT_unpert$S0[2,]
+      Bias_Ss1 = apply(Xf_Ss1,2,mean) - OUT_unpert$Ss[1,]
+      Bias_Ss2 = apply(Xf_Ss2,2,mean) - OUT_unpert$Ss[2,]
+      
+      Bias_Sd1 = apply(Xf_Sd1,2,mean) - OUT_unpert$Sd[1,]
+      Bias_Sd2 = apply(Xf_Sd2,2,mean) - OUT_unpert$Sd[2,]
+      
+      Xf_S01_Correct = sweep(Xf_S01, 2, Bias_S01, "-")
+      Xf_S02_Correct = sweep(Xf_S02, 2, Bias_S02, "-")
+      Xf_Ss1_Correct = sweep(Xf_Ss1, 2, Bias_Ss1, "-")
+      Xf_Ss2_Correct = sweep(Xf_Ss2, 2, Bias_Ss2, "-")
+      Xf_Sd1_Correct = sweep(Xf_Sd1, 2, Bias_Sd1, "-")
+      Xf_Sd2_Correct = sweep(Xf_Sd2, 2, Bias_Sd2, "-")
+      for (i in 1:N_GRID) {
+        Xf_S01_Correct[,i] = pmax(pmin(Xf_S01_Correct[,i],PARAMS$S0FC[1,i]),0.01)
+        Xf_S02_Correct[,i] = pmax(pmin(Xf_S02_Correct[,i],PARAMS$S0FC[2,i]),0.01)
+        Xf_Ss1_Correct[,i] = pmax(pmin(Xf_Ss1_Correct[,i],PARAMS$SsFC[1,i]),0.01)
+        Xf_Ss2_Correct[,i] = pmax(pmin(Xf_Ss2_Correct[,i],PARAMS$SsFC[2,i]),0.01)
+        Xf_Sd1_Correct[,i] = pmax(pmin(Xf_Sd1_Correct[,i],PARAMS$SdFC[1,i]),0.1)
+        Xf_Sd2_Correct[,i] = pmax(pmin(Xf_Sd2_Correct[,i],PARAMS$SdFC[2,i]),0.1)
+      }
+      Xa_S01 = Xf_S01_Correct;   Xa_S02 = Xf_S02_Correct
+      Xa_Ss1 = Xf_Ss1_Correct;   Xa_Ss2 = Xf_Ss2_Correct
+      Xa_Sd1 = Xf_Sd1_Correct;   Xa_Sd2 = Xf_Sd2_Correct
+      Xa_Sg  = Xf_Sg  ;  Xa_Sr  = Xf_Sr
+      Xa_Mleaf1 = Xf_Mleaf1;      Xa_Mleaf2 = Xf_Mleaf2
+      stopifnot(max(apply(Xf_S01_Correct,2,mean)  - OUT_unpert$S0[1,]) < 0.001)
+      
     } else {
       
       #### 4) ASSIMILATION PERIOD #######  
@@ -310,15 +355,29 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
         Xa_Ss2[,i] = pmax(pmin(Xa_Ss2[,i],PARAMS$SsFC[2,i]),0.01)
       }
       
-      FORCING$pe   = rbind(PE[k,],PE[k,])
-      FORCING$pair = PAIR
-      FORCING$u2   = rbind(U2[k,],U2[k,])
+      ## unperturbed run ###
+      FORCING$pe   =  FORCING_Unpert$pe = rbind(PE[k,],PE[k,])
+      FORCING$pair =  FORCING_Unpert$pair = PAIR
+      FORCING$u2   =  FORCING_Unpert$u2  = rbind(U2[k,],U2[k,])
+      FORCING_Unpert$Pg = rbind(Pg,Pg)
+      FORCING_Unpert$Rg = rbind(Rg,Rg)
+      FORCING_Unpert$Ta = rbind(Ta,Ta)
       
-      ### perturbation  ####
+      STATES_unpert$S0    = rbind(apply(Xa_S01,2,mean),apply(Xa_S02,2,mean))
+      STATES_unpert$Ss    = rbind(apply(Xa_Ss1,2,mean),apply(Xa_Ss2,2,mean))
+      STATES_unpert$Sd    = rbind(apply(Xa_Sd1,2,mean),apply(Xa_Sd2,2,mean))
+      STATES_unpert$Sg    = apply(Xa_Sg,2,mean)
+      STATES_unpert$Sr    = apply(Xa_Sr,2,mean)
+      STATES_unpert$Mleaf = rbind(apply(Xa_Mleaf1,2,mean),apply(Xa_Mleaf2,2,mean))
+      
+      OUT_unpert = AWRAL_TimeStep(FORCING_Unpert,STATES_unpert,PARAMS)
+    
+      ### perturbed run  ####
       Pg = PG[k,];     Rg = RG[k,];    Ta = TA[k,]
       RAIN_L = (1- Rain_Err)*Pg;     RAIN_H = (1 + Rain_Err) *Pg
       
       ## ensemble forecast, parallel run for each grid ####
+      
       for (j in 1:Ne) {
         
         Pens = mapply(runif, n=1, min = RAIN_L, max = RAIN_H)
@@ -381,37 +440,78 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
         hXf_w0[,i] = pmax(pmin(hXf_w0[,i],1),0)
       }
       
-      S0mean_f = sweep(Xf_S01,MARGIN =  2, PARAMS$Fhru[1,], "*") + 
-        sweep(Xf_S02,MARGIN =  2, PARAMS$Fhru[2,], "*")
-      Ssmean_f = sweep(Xf_Ss1,MARGIN =  2, PARAMS$Fhru[1,], "*") + 
-        sweep(Xf_Ss2,MARGIN =  2, PARAMS$Fhru[2,], "*")
+      ### Bias correction for forecast model states  ######
       
+      Bias_S01 = apply(Xf_S01,2,mean) - OUT_unpert$S0[1,]
+      Bias_S02 = apply(Xf_S02,2,mean) - OUT_unpert$S0[2,]
+      Bias_Ss1 = apply(Xf_Ss1,2,mean) - OUT_unpert$Ss[1,]
+      Bias_Ss2 = apply(Xf_Ss2,2,mean) - OUT_unpert$Ss[2,]
+      
+      Bias_Sd1 = apply(Xf_Sd1,2,mean) - OUT_unpert$Sd[1,]
+      Bias_Sd2 = apply(Xf_Sd2,2,mean) - OUT_unpert$Sd[2,]
+      
+      Xf_S01_Correct = sweep(Xf_S01, 2, Bias_S01, "-")
+      Xf_S02_Correct = sweep(Xf_S02, 2, Bias_S02, "-")
+      Xf_Ss1_Correct = sweep(Xf_Ss1, 2, Bias_Ss1, "-")
+      Xf_Ss2_Correct = sweep(Xf_Ss2, 2, Bias_Ss2, "-")
+      Xf_Sd1_Correct = sweep(Xf_Sd1, 2, Bias_Sd1, "-")
+      Xf_Sd2_Correct = sweep(Xf_Sd2, 2, Bias_Sd2, "-")
+      
+      BIAS_S01[k-365,] = Bias_S01
+      BIAS_S02[k-365,] = Bias_S02
+      BIAS_Ss1[k-365,] = Bias_Ss1
+      BIAS_Ss2[k-365,] = Bias_Ss2
+      BIAS_QTOT[k-365, ] = Bias_QTOT
+      stopifnot(max(apply(Xf_S01_Correct,2,mean)  - OUT_unpert$S0[1,]) < 0.001)
+      
+      ### correct to SM range 
+      for (i in 1:N_GRID) {
+        Xf_S01_Correct[,i] = pmax(pmin(Xf_S01_Correct[,i],PARAMS$S0FC[1,i]),0.01)
+        Xf_S02_Correct[,i] = pmax(pmin(Xf_S02_Correct[,i],PARAMS$S0FC[2,i]),0.01)
+        Xf_Ss1_Correct[,i] = pmax(pmin(Xf_Ss1_Correct[,i],PARAMS$SsFC[1,i]),0.01)
+        Xf_Ss2_Correct[,i] = pmax(pmin(Xf_Ss2_Correct[,i],PARAMS$SsFC[2,i]),0.01)
+        Xf_Sd1_Correct[,i] = pmax(pmin(Xf_Sd1_Correct[,i],PARAMS$SdFC[1,i]),0.01)
+        Xf_Sd2_Correct[,i] = pmax(pmin(Xf_Sd2_Correct[,i],PARAMS$SdFC[2,i]),0.01)
+      }
+      
+      ## grid S0 and Ss after bias correction
+      S0mean_f = sweep(Xf_S01_Correct, MARGIN =  2, PARAMS$Fhru[1,], "*") + 
+        sweep(Xf_S02_Correct,MARGIN =  2, PARAMS$Fhru[2,], "*")
+      Ssmean_f = sweep(Xf_Ss1_Correct, MARGIN =  2, PARAMS$Fhru[1,], "*") + 
+        sweep(Xf_Ss2_Correct,MARGIN =  2, PARAMS$Fhru[2,], "*")
+      
+      hXf_w0_Correct = sweep(sweep(S0mean_f,2,AWRA_S0min,"-"), 2, AWRA_S0max - AWRA_S0min, "/")
+      hXf_w0_Correct[hXf_w0_Correct>1] = 1
+      hXf_w0_Correct[hXf_w0_Correct<0] = 0
+      
+      if (k%%200 ==0 ) {print(paste0("Bias correction for time ", k, " is finished.")) }
+    
       ####  5) Grid specific Kalman gain calculation, using the evolved ensemble ######
       
       ### Grid by grid inflation of ensemble variance
-      Dev_S01 = (Xf_S01 - matrix(colMeans(Xf_S01, na.rm = T),Ne,N_GRID,byrow=T))
-      Dev_S02 = (Xf_S02 - matrix(colMeans(Xf_S02, na.rm = T),Ne,N_GRID,byrow=T))
+      Dev_S01 = (Xf_S01_Correct - matrix(colMeans(Xf_S01_Correct, na.rm = T),Ne,N_GRID,byrow=T))
+      Dev_S02 = (Xf_S02_Correct - matrix(colMeans(Xf_S02_Correct, na.rm = T),Ne,N_GRID,byrow=T))
       
-      Xf_S01 = sweep(Dev_S01,2, IF_vec, "*") + matrix(colMeans(Xf_S01), Ne, N_GRID, byrow=T)
-      Xf_S02 = sweep(Dev_S02,2, IF_vec, "*") + matrix(colMeans(Xf_S02), Ne, N_GRID, byrow=T)
+      Xf_S01_Correct = sweep(Dev_S01,2, IF_vec, "*") + matrix(colMeans(Xf_S01_Correct), Ne, N_GRID, byrow=T)
+      Xf_S02_Correct = sweep(Dev_S02,2, IF_vec, "*") + matrix(colMeans(Xf_S02_Correct), Ne, N_GRID, byrow=T)
       
       for (i in 1:N_GRID) {
-        Xf_S01[,i] = pmax(pmin(Xf_S01[,i], PARAMS$S0FC[1,i]), 0.01)
-        Xf_S02[,i] = pmax(pmin(Xf_S02[,i], PARAMS$S0FC[2,i]), 0.01)
+        Xf_S01_Correct[,i] = pmax(pmin(Xf_S01_Correct[,i], PARAMS$S0FC[1,i]), 0.01)
+        Xf_S02_Correct[,i] = pmax(pmin(Xf_S02_Correct[,i], PARAMS$S0FC[2,i]), 0.01)
       }
       
       ##### HPfHT: now is the variance of H(x) ######
-      HPfHT = apply(hXf_w0,2,function(x) {var(x, na.rm=T)})     # Model variance 
+      HPfHT = apply(hXf_w0_Correct,2,function(x) {var(x, na.rm=T)})     # Model variance 
       SMAP_OBS =  SMAP_wetness_scaled[k-365,]
       
       for (i in 1:N_GRID) {
         
         ### gain calculation: grid specific ####
         PfHT = matrix(NA,4,1)
-        PfHT[1] = cov(Xf_S01[,i], hXf_w0[,i], use = 'pairwise.complete.obs')
-        PfHT[2] = cov(Xf_S02[,i], hXf_w0[,i], use = 'pairwise.complete.obs')
-        PfHT[3] = cov(Xf_Ss1[,i], hXf_w0[,i], use = 'pairwise.complete.obs')
-        PfHT[4] = cov(Xf_Ss2[,i], hXf_w0[,i], use = 'pairwise.complete.obs')
+        PfHT[1] = cov(Xf_S01_Correct[,i], hXf_w0_Correct[,i], use = 'pairwise.complete.obs')
+        PfHT[2] = cov(Xf_S02_Correct[,i], hXf_w0_Correct[,i], use = 'pairwise.complete.obs')
+        PfHT[3] = cov(Xf_Ss1_Correct[,i], hXf_w0_Correct[,i], use = 'pairwise.complete.obs')
+        PfHT[4] = cov(Xf_Ss2_Correct[,i], hXf_w0_Correct[,i], use = 'pairwise.complete.obs')
         
         if (is.na(SMAP_OBS[i])) {
           K   = rep(0,4)
@@ -428,19 +528,18 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
             Kgain_30[k-365,] = K    } 
         
         # 6) state updating for all ensemble members #######
-        Xa_S01[,i] = Xf_S01[,i] + K[1] * (OBS - hXf_w0[,i])
-        Xa_S02[,i] = Xf_S02[,i] + K[2] * (OBS - hXf_w0[,i])
-        Xa_Ss1[,i] = Xf_Ss1[,i] + K[3] * (OBS - hXf_w0[,i])
-        Xa_Ss2[,i] = Xf_Ss2[,i] + K[4] * (OBS - hXf_w0[,i])
+        Xa_S01[,i] = Xf_S01_Correct[,i] + K[1] * (OBS - hXf_w0_Correct[,i])
+        Xa_S02[,i] = Xf_S02_Correct[,i] + K[2] * (OBS - hXf_w0_Correct[,i])
+        Xa_Ss1[,i] = Xf_Ss1_Correct[,i] + K[3] * (OBS - hXf_w0_Correct[,i])
+        Xa_Ss2[,i] = Xf_Ss2_Correct[,i] + K[4] * (OBS - hXf_w0_Correct[,i])
         
-        Innov_grid = OBS - hXf_w0[,i]
-        Innov_mean[k-365,i] = mean(OBS - hXf_w0[,i], na.rm=T)
-        Innov_median[k-365,i] = median(OBS - hXf_w0[,i], na.rm=T)
-        Innov_75[k-365,i] = quantile(OBS - hXf_w0[,i], 0.75, na.rm=T)
-        Innov_25[k-365,i] = quantile(OBS - hXf_w0[,i], 0.25, na.rm=T)
+        Innov_grid = OBS - hXf_w0_Correct[,i]
+        Innov_mean[k-365,i] = mean(OBS - hXf_w0_Correct[,i], na.rm=T)
+        Innov_median[k-365,i] = median(OBS - hXf_w0_Correct[,i], na.rm=T)
+        Innov_75[k-365,i] = quantile(OBS - hXf_w0_Correct[,i], 0.75, na.rm=T)
+        Innov_25[k-365,i] = quantile(OBS - hXf_w0_Correct[,i], 0.25, na.rm=T)
         
       }
-      
       
       for (i in 1:N_GRID) {
         Xa_S01[,i] = pmax(pmin(Xa_S01[,i],PARAMS$S0FC[1,i]),0.01)
@@ -460,13 +559,13 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
       
       ###### 7) save ensemble statistics from the evolving matrix  #######
       
-      S01_median_f[k-365,] = apply(Xf_S01,2,function(x) {median(x,na.rm=T)} )
+      S01_median_f[k-365,] = apply(Xf_S01_Correct,2,function(x) {median(x,na.rm=T)} )
       S01_median_a[k-365,] = apply(Xa_S01,2,function(x) {median(x,na.rm=T)})
-      S02_median_f[k-365, ] = apply(Xf_S02,2,function(x) {median(x,na.rm=T)})
+      S02_median_f[k-365, ] = apply(Xf_S02_Correct,2,function(x) {median(x,na.rm=T)})
       S02_median_a[k-365, ] = apply(Xa_S02,2,function(x) {median(x,na.rm=T)}) 
-      Ss1_median_f[k-365, ] = apply(Xf_Ss1,2,function(x) {median(x,na.rm=T)})
+      Ss1_median_f[k-365, ] = apply(Xf_Ss1_Correct,2,function(x) {median(x,na.rm=T)})
       Ss1_median_a[k-365,]  = apply(Xa_Ss1,2,function(x) {median(x,na.rm=T)})
-      Ss2_median_f[k-365, ] = apply(Xf_Ss2,2,function(x) {median(x,na.rm=T)})
+      Ss2_median_f[k-365, ] = apply(Xf_Ss2_Correct,2,function(x) {median(x,na.rm=T)})
       Ss2_median_a[k-365,]  = apply(Xa_Ss2,2,function(x) {median(x,na.rm=T)})
       
       S0_min_f[k-365,] = apply(S0mean_f,2,function(x) {min(x,na.rm=T)} )
@@ -497,13 +596,13 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
       Ss_median_a[k-365, ] = apply(Ssmean_a,2,function(x) {median(x,na.rm=T)})
       Ss_mean_a[k-365,]  = apply(Ssmean_a,2,function(x) {mean(x,na.rm=T)})
       
-      S01_ens10[k-365,] = Xa_S01[10,]  # ensemble member 10 for all grids
-      S01_ens20[k-365,] = Xa_S01[20,]  # ensemble member 20 for all grids
-      S01_ens30[k-365,] = Xa_S01[30,]
-      
-      S02_ens10[k-365,] = Xa_S02[10,]  # ensemble member 10 for all grids
-      S02_ens20[k-365,] = Xa_S02[20,]  # ensemble member 20 for all grids
-      S02_ens30[k-365,] = Xa_S02[30,]
+      # S01_ens10[k-365,] = Xa_S01[10,]  # ensemble member 10 for all grids
+      # S01_ens20[k-365,] = Xa_S01[20,]  # ensemble member 20 for all grids
+      # S01_ens30[k-365,] = Xa_S01[30,]
+      # 
+      # S02_ens10[k-365,] = Xa_S02[10,]  # ensemble member 10 for all grids
+      # S02_ens20[k-365,] = Xa_S02[20,]  # ensemble member 20 for all grids
+      # S02_ens30[k-365,] = Xa_S02[30,]
       
       QTOT_median[k-365, ] = apply(QTOT_f, 2, function(x) {median(x,na.rm=T)})
       QTOT_mean[k-365, ]  = apply(QTOT_f, 2, function(x) {mean(x,na.rm=T)})
@@ -526,8 +625,8 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
       ET_mean[k-365, ]  = apply(ET_f, 2, function(x) {mean(x,na.rm=T)})
       ET_75[k-365,]     = apply(ET_f, 2, function(x) {quantile(x,prob = 0.75,na.rm=T)})
       ET_25[k-365,]     = apply(ET_f, 2, function(x) {quantile(x,prob = 0.25,na.rm=T)})
-      ET_min[k-365,] = apply(ET_f,2,function(x) {min(x,na.rm=T)} )
-      ET_max[k-365,] = apply(ET_f,2,function(x) {max(x,na.rm=T)})
+      # ET_min[k-365,] = apply(ET_f,2,function(x) {min(x,na.rm=T)} )
+      # ET_max[k-365,] = apply(ET_f,2,function(x) {max(x,na.rm=T)})
       
       SG_median[k-365, ] = apply(Xa_Sg, 2, function(x) {median(x,na.rm=T)})
       SG_mean[k-365, ]  = apply(Xa_Sg, 2, function(x) {mean(x,na.rm=T)})
@@ -615,7 +714,7 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
     
     ET_median = ET_median, ET_mean =ET_mean ,
     ET_75 = ET_75, ET_25 =ET_25 ,
-    ET_max = ET_max, ET_min = ET_min, 
+    # ET_max = ET_max, ET_min = ET_min, 
     
     SG_median = SG_median, SG_mean = SG_mean ,
     SG_75 = SG_75, SG_25 = SG_25 ,
@@ -635,8 +734,8 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
     w0_min_a = w0_min_a, w0_max_a = w0_max_a, w0_75_a = w0_75_a, w0_25_a = w0_25_a,
     w0_median_a = w0_median_a, w0_mean_a = w0_mean_a, 
     
-    S01_ens10 = S01_ens10 , S01_ens20 = S01_ens20, S01_ens30 = S01_ens30, 
-    S02_ens10 = S02_ens10 , S02_ens20 = S02_ens20, S01_ens30 = S02_ens30, 
+    # S01_ens10 = S01_ens10 , S01_ens20 = S01_ens20, S01_ens30 = S01_ens30, 
+    # S02_ens10 = S02_ens10 , S02_ens20 = S02_ens20, S01_ens30 = S02_ens30, 
     Kgain_10 = Kgain_10, Kgain_20 = Kgain_20, Kgain_30 = Kgain_30,
     w0_ensemble = w0_ensemble, Qtot_ensemble = Qtot_ensemble,
     Q_grid_ensemble = Q_grid_ensemble,
@@ -645,7 +744,9 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
     AWRA_OL_w = AWRA_wetness,
     # innovation 
     Innov_mean = Innov_mean ,  Innov_median = Innov_median,
-    Innov_75 = Innov_75, Innov_25 = Innov_25
+    Innov_75 = Innov_75, Innov_25 = Innov_25,
+    BIAS_S01 = BIAS_S01, BIAS_S02 = BIAS_S02, 
+    BIAS_Ss1 = BIAS_Ss1, BIAS_SS2 = BIAS_SS2,
   ))
   
 }
