@@ -62,16 +62,7 @@ Run_AWRAL_calib_SM_13par <- function(pars,all_forcing,STATIC_PAR,N_GRID=1,
   NL <- length(PG)  # define number of time steps; here PG is a vector
   S0mean     = matrix(NA,NL,1)
   QTOT       = matrix(NA,NL,1)
-  S01 = S02 = Ss1 = Ss2 =  matrix(NA,NL,1)
-  
-  Ss1 = Ss2 = matrix(NA,  NL, N_grid)
-  QTOT       = matrix(NA, NL, N_grid)
-  ET         = matrix(NA, NL, N_grid)
-  LAI_data         = fveg_data = matrix(NA,NL,N_grid)
-  Et_data =   matrix(NA,NL,N_grid)
-  Ei_data =  Mleaf_data =  matrix(NA,NL,N_grid)
-  FSAT = matrix(NA,NL,N_grid)
-  SG = Sr = QG = QR =  matrix(NA,NL,N_grid)
+  S01 = S02 = FSAT = SG = Sr = QG = QR =  matrix(NA,NL,1)
   
   
   ######## Time stepping  ######
@@ -99,16 +90,19 @@ Run_AWRAL_calib_SM_13par <- function(pars,all_forcing,STATIC_PAR,N_GRID=1,
     ## Store the key states and fluxes, same as length of forcings
     S0mean[k,] = c(1,1) %*% (STATES$S0 * PARAMS$Fhru)
     QTOT[k,]   = OUTPUTS$Qtot
-    LAI[k,] = OUTPUTS$LAI
+    # LAI[k,] = OUTPUTS$LAI
     Sr[k,]   = OUTPUTS$Sr
     S01[k,] = OUTPUTS$S0[1,]
     S02[k,] = OUTPUTS$S0[2,]
+    SG[k,] =  OUTPUTS$Sg
+    FSAT[k,] = OUTPUTS$fsat
+    QG[k,]     =  OUTPUTS$Qg
+    QR[k,]     =  c(1,1) %*% (OUTPUTS$QR * PARAMS$Fhru)  
+
     
-    if (k == NL) {
-      Last_state = list(S0 = OUTPUTS$S0, Ss = OUTPUTS$Ss,Sd = OUTPUTS$Sd,
-                        Sg = OUTPUTS$Sg, Sr = OUTPUTS$Sr, Mleaf = OUTPUTS$Mleaf) }
+    return(list(S0mean=S0mean, QTOT=QTOT, LAI=LAI, 
+                S01 = S01 , S02 = S02, 
+                Sr=Sr, FSAT = FSAT,SG = SG, Sr = Sr, QG = QG, QR = QR)) 
   }
-  return(list(S0mean=S0mean, QTOT=QTOT, LAI=LAI, 
-              S01 = S01 , S02 = S02, 
-              Last_state =  Last_state, Sr=Sr)) 
+
 }
