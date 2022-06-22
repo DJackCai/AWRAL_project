@@ -649,7 +649,7 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
       # w0_f =  matrix(PARAMS$Fhru[1,] / PARAMS$S0FC[1,],Ne,N_GRID,byrow=T) * Xf_S01 +
       #  matrix(PARAMS$Fhru[2,] / PARAMS$S0FC[2,],Ne,N_GRID,byrow=T) * Xf_S02
       
-      w0_f = hXf_w0
+      w0_f = hXf_w0_Correct
       w0_min_f[k-365,] = apply(w0_f,2,function(x) {min(x,na.rm=T)} )
       w0_max_f[k-365,] = apply(w0_f,2,function(x) {max(x,na.rm=T)})
       w0_75_f[k-365, ] = apply(w0_f,2,function(x) {quantile(x,prob = 0.75,na.rm=T)})
@@ -662,9 +662,7 @@ Run_AWRAL_EnKF_W_Calib_GridIF <- function(catname, IF_vec, Ne, par_mat,
       w0_a = sweep(sweep(S0mean_a,2,AWRA_S0min,"-"), 2, AWRA_S0max - AWRA_S0min, "/")
       w0_a[w0_a < 0] = 0
       w0_a[w0_a > 1] = 1
-      # w0_a  =  matrix(PARAMS$Fhru[1,] / PARAMS$S0FC[1,],Ne,N_GRID,byrow=T) * Xa_S01 +
-      #  matrix(PARAMS$Fhru[2,] / PARAMS$S0FC[2,],Ne,N_GRID,byrow=T) * Xa_S02
-      
+   
       w0_min_a[k-365,] = apply(w0_a, 2,function(x) {min(x,na.rm=T)} )
       w0_max_a[k-365,] = apply(w0_a, 2,function(x) {max(x,na.rm=T)})
       w0_75_a[k-365, ] = apply(w0_a, 2,function(x) {quantile(x,prob = 0.75,na.rm=T)})
