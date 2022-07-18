@@ -29,7 +29,7 @@ end_SMAP = which(dates_1321 == '2019-12-31')
 grid_forcing_extract <- function(catname, gridnum,start = start_calib,end = end_Vali ) {
   
    # gridnum: string like "grid11" 
-   # remove the YYYY-MM-DD columns (1:3)
+   ######### Important: for grids, remove the YYYY-MM-DD columns (1:3) #######
   
 	PRECIP <- as.matrix(read.csv(paste0(forcingpath, catname,"rain_day_resampled_201321.csv"),header = T))[start:end,-c(1:3)]
   RAD    = as.matrix(read.csv(paste0(forcingpath,catname, "solar_exposure_day_resampled_201321.csv"),header = T))[start:end,-c(1:3)]
