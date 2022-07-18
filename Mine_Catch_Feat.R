@@ -11,10 +11,6 @@ end_calib_9414 = which(dates_9214 == '2014-12-31')
 
 library(EcoHydRology); library(imputeTS)
 
-catch_key_feat_df = read.csv("June6th_Catch_KeyFeatures.csv",header = T)
-
-catch_key_feat_df$ID  = as.character(catch_key_feat_df$ID)
-
 
 annual_sum = function(full_ts,year1,year2) {
   years = format(DateSeq(year1,year2),"%Y")
@@ -118,23 +114,19 @@ catch_mining_framework = function(catid, cormethod = "spearman",
   
   #### 5) antecedent SM and Q coupling (Crow et al., 2017, 2018) #### 
   
+  
+  ## 22 June: don't subset the data 
   SMAP_lag1518 = apply(SMAP_dat_shift_1518,2,dplyr::lag,n=1)
-  SMAP_sub = SMAP_dat_shift_1518[P_Q_index_1518, ]
-  SMAP_lag_sub = SMAP_lag1518[P_Q_index_1518, ]
   
-  cor_SMAP_Q = apply(SMAP_sub, 2, function(x) { cor(x,Qval_1518_sub,use='p',method = cormethod)   })
-  lag1_SMAP_Q = apply(SMAP_lag_sub,2,function(x) {cor(x,Qval_1518_sub, use="p",method = cormethod)})
+  cor_SMAP_Q = apply(SMAP_dat_shift_1518, 2, function(x) { cor(x,Qval_1518,use='p',method = cormethod)   })
+  lag1_SMAP_Q = apply(SMAP_lag1518,2,function(x) {cor(x,Qval_1518, use="p",method = cormethod)})
   
-  catch_cor_SMAPQ = mean(cor_SMAP_Q,na.rm=T)
-  catch_lag1_SMAPQ = mean(lag1_SMAP_Q,na.rm=T)
+  catch_cor_SMAPQ = mean(cor_SMAP_Q,na.rm=T); catch_lag1_SMAPQ = mean(lag1_SMAP_Q,na.rm=T)
   
-  cor_SMAP_ROC = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(SMAP_sub),
+  cor_SMAP_ROC = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(SMAP_dat_shift_1518),
                         as.data.frame(ROC_daily_1518_grids))
-  lag1_SMAP_ROC = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(SMAP_lag_sub),
+  lag1_SMAP_ROC = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(SMAP_lag1518),
                          as.data.frame(ROC_daily_1518_grids))
-  
-  # cor_SMAP_ROC = apply(SMAP_sub, 2, function(x) { cor(x,ROC_daily_1518_catch,use='p',method = cormethod)   })
-  # lag1_SMAP_ROC = apply(SMAP_lag_sub,2,function(x) {cor(x,ROC_daily_1518_catch, use="p",method = cormethod)} )
   
   catch_cor_SMAPROC = mean(cor_SMAP_ROC, na.rm=T)
   catch_lag1_SMAPROC = mean(lag1_SMAP_ROC, na.rm=T)
@@ -148,27 +140,28 @@ catch_mining_framework = function(catid, cormethod = "spearman",
   Q_fill_1518[-c(which(Qval_1518>0.01))] = NA 
   
   acf1_Q_9418 = acf(Q_fill,lag.max = 1,plot = F,na.action = na.pass)[["acf"]][2]
-  acf1_Q_1518 = acf(Q_fill_1518,lag.max = 1,plot = F,na.action = na.pass)[["acf"]][2]
+  # acf1_Q_1518 = acf(Q_fill_1518,lag.max = 1,plot = F,na.action = na.pass)[["acf"]][2]
   
   #### 7) control of rainfall on Q ##### 
-  PG_9418_lag1 = apply(PG_9418,2,dplyr::lag,n=1)
-  PG_9418_lag2 = apply(PG_9418,2,dplyr::lag,n=2)
-  PG_9418_lag3 = apply(PG_9418,2,dplyr::lag,n=3)
-  
-  Rain_sub = PG_9418[P_Q_index,]
-  Rain_sub_lag1 = PG_9418_lag1[P_Q_index,]
-  Rain_sub_lag2 = PG_9418_lag2[P_Q_index,]
-  Rain_sub_lag3 = PG_9418_lag3[P_Q_index,]
-  
-  cor_Rain_Q  = apply(Rain_sub,2,function(x) {cor(x, Qval_subset, use="p",method = cormethod)})
-  lag1_Rain_Q = apply(Rain_sub_lag1,2,function(x) {cor(x,Qval_subset, use="p",method = cormethod)})
-  lag2_Rain_Q = apply(Rain_sub_lag2,2,function(x) {cor(x,Qval_subset, use="p",method = cormethod)})
-  lag3_Rain_Q = apply(Rain_sub_lag3,2,function(x) {cor(x,Qval_subset, use="p",method = cormethod)})
-  
-  catch_cor_RQ = mean(cor_Rain_Q, na.rm=T)
-  catch_lag1_RQ = mean(lag1_Rain_Q,na.rm=T)
-  catch_lag2_RQ = mean(lag2_Rain_Q,na.rm=T)
-  catch_lag3_RQ = mean(lag3_Rain_Q,na.rm=T)
+  # PG_9418_lag1 = apply(PG_9418,2,dplyr::lag,n=1)
+  # PG_9418_lag2 = apply(PG_9418,2,dplyr::lag,n=2)
+  # PG_9418_lag3 = apply(PG_9418,2,dplyr::lag,n=3)
+  # 
+  # Rain_sub = PG_9418[P_Q_index,]
+  # Rain_sub_lag1 = PG_9418_lag1[P_Q_index,]
+  # Rain_sub_lag2 = PG_9418_lag2[P_Q_index,]
+  # Rain_sub_lag3 = PG_9418_lag3[P_Q_index,]
+  # 
+  # cor_Rain_Q  = apply(Rain_sub,2,function(x) {cor(x, Qval_subset, use="p",method = cormethod)})
+  # lag1_Rain_Q = apply(Rain_sub_lag1,2,function(x) {cor(x,Qval_subset, use="p",method = cormethod)})
+  # lag2_Rain_Q = apply(Rain_sub_lag2,2,function(x) {cor(x,Qval_subset, use="p",method = cormethod)})
+  # lag3_Rain_Q = apply(Rain_sub_lag3,2,function(x) {cor(x,Qval_subset, use="p",method = cormethod)})
+  # 
+  # catch_cor_RQ = mean(cor_Rain_Q, na.rm=T)
+  # catch_lag1_RQ = mean(lag1_Rain_Q,na.rm=T)
+  # catch_lag2_RQ = mean(lag2_Rain_Q,na.rm=T)
+  # catch_lag3_RQ = mean(lag3_Rain_Q,na.rm=T)
+  # 
   
   ### 7) Estimated baseflow index after separation #### 
   
@@ -194,8 +187,7 @@ catch_mining_framework = function(catid, cormethod = "spearman",
                                     STATIC_PAR =STATIC_PAR, N_GRID)
   
   ## lag SM states #### 
-  S0mean_9414 = fit_mod_9414$S0mean
-  Ssmean_9414 = fit_mod_9414$Ssmean
+  S0mean_9414 = fit_mod_9414$S0mean;     Ssmean_9414 = fit_mod_9414$Ssmean
   S0mean_1518 = fit_mod_1518$S0mean[-c(1:365), ]
   Ssmean_1518 = fit_mod_1518$Ssmean[-c(1:365), ]
   S0mean_9418 = rbind(S0mean_9414, S0mean_1518 )
@@ -204,14 +196,11 @@ catch_mining_framework = function(catid, cormethod = "spearman",
   SG_1518 = fit_mod_1518$SG[-c(1:365),]
   SG_9418 = rbind(SG_9414, SG_1518)
   
-  
   ## Compute lag series 
-  
   S0mean_9418_lag = apply(S0mean_9418,2,dplyr::lag, n= 1)
   Ssmean_9418_lag = apply(Ssmean_9418,2,dplyr::lag, n= 1)
   S0mean_1518_lag = apply(S0mean_1518,2,dplyr::lag, n= 1)
   Ssmean_1518_lag = apply(Ssmean_1518,2,dplyr::lag, n= 1)
-  
   
   Qtot_9414 = fit_mod_9414$QTOT;   
   Qtot_1518 = fit_mod_1518$QTOT[-c(1:365),]
@@ -274,43 +263,43 @@ catch_mining_framework = function(catid, cormethod = "spearman",
   
   ### Coupling between SM but with ROC #####
   
-  PG_9418_sim_sub  = PG_9418[P_Q_index_sim, ]
-  
-  ROC_9418_sim = mapply(function(x,y) {return(x/y) }, as.data.frame(Qtot_9418_sim_sub),
-                        as.data.frame(PG_9418_sim_sub))
-  
-  PG_1518_sim_sub  = PG_1518[P_Q_index_sim_1518, ]
-  ROC_1518_sim = mapply(function(x,y) {return(x/y) }, as.data.frame(Qtot_1518_sim_sub),
-                        as.data.frame(PG_1518_sim_sub))
-  
-  cor_S0_ROC_9418 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(S0mean_9418_sub),
-                           as.data.frame(ROC_9418_sim))
-  cor_Ss_ROC_9418 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(Ssmean_9418_sub),
-                           as.data.frame(ROC_9418_sim))
-  lag_S0_ROC_9418 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(S0mean_9418_sub_lag),
-                           as.data.frame(ROC_9418_sim))
-  lag_Ss_ROC_9418 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(Ssmean_9418_sub_lag),
-                           as.data.frame(ROC_9418_sim))
-  
-  cor_S0_ROC_1518 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(S0mean_1518_sub),
-                           as.data.frame(ROC_1518_sim))
-  cor_Ss_ROC_1518 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(Ssmean_1518_sub),
-                           as.data.frame(ROC_1518_sim))
-  lag_S0_ROC_1518 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(S0mean_1518_sub_lag),
-                           as.data.frame(ROC_1518_sim))
-  lag_Ss_ROC_1518 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(Ssmean_1518_sub_lag),
-                           as.data.frame(ROC_1518_sim))
-  
-  catch_cor_S0ROC_9418 = mean(cor_S0_ROC_9418)
-  catch_cor_SsROC_9418 = mean(cor_Ss_ROC_9418)
-  catch_lag_S0ROC_9418 = mean(lag_S0_ROC_9418)
-  catch_lag_SsROC_9418 = mean(lag_Ss_ROC_9418)
-  
-  catch_cor_S0ROC_1518 = mean(cor_S0_ROC_1518)
-  catch_cor_SsROC_1518 = mean(cor_Ss_ROC_1518)
-  catch_lag_S0ROC_1518 = mean(lag_S0_ROC_1518)
-  catch_lag_SsROC_1518 = mean(lag_Ss_ROC_1518)
-  
+  # PG_9418_sim_sub  = PG_9418[P_Q_index_sim, ]
+  # 
+  # ROC_9418_sim = mapply(function(x,y) {return(x/y) }, as.data.frame(Qtot_9418_sim_sub),
+  #                       as.data.frame(PG_9418_sim_sub))
+  # 
+  # PG_1518_sim_sub  = PG_1518[P_Q_index_sim_1518, ]
+  # ROC_1518_sim = mapply(function(x,y) {return(x/y) }, as.data.frame(Qtot_1518_sim_sub),
+  #                       as.data.frame(PG_1518_sim_sub))
+  # 
+  # cor_S0_ROC_9418 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(S0mean_9418_sub),
+  #                          as.data.frame(ROC_9418_sim))
+  # cor_Ss_ROC_9418 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(Ssmean_9418_sub),
+  #                          as.data.frame(ROC_9418_sim))
+  # lag_S0_ROC_9418 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(S0mean_9418_sub_lag),
+  #                          as.data.frame(ROC_9418_sim))
+  # lag_Ss_ROC_9418 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(Ssmean_9418_sub_lag),
+  #                          as.data.frame(ROC_9418_sim))
+  # 
+  # cor_S0_ROC_1518 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(S0mean_1518_sub),
+  #                          as.data.frame(ROC_1518_sim))
+  # cor_Ss_ROC_1518 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(Ssmean_1518_sub),
+  #                          as.data.frame(ROC_1518_sim))
+  # lag_S0_ROC_1518 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(S0mean_1518_sub_lag),
+  #                          as.data.frame(ROC_1518_sim))
+  # lag_Ss_ROC_1518 = mapply(function(x,y) {cor(x,y,use='p',method = cormethod)}, as.data.frame(Ssmean_1518_sub_lag),
+  #                          as.data.frame(ROC_1518_sim))
+  # 
+  # catch_cor_S0ROC_9418 = mean(cor_S0_ROC_9418)
+  # catch_cor_SsROC_9418 = mean(cor_Ss_ROC_9418)
+  # catch_lag_S0ROC_9418 = mean(lag_S0_ROC_9418)
+  # catch_lag_SsROC_9418 = mean(lag_Ss_ROC_9418)
+  # 
+  # catch_cor_S0ROC_1518 = mean(cor_S0_ROC_1518)
+  # catch_cor_SsROC_1518 = mean(cor_Ss_ROC_1518)
+  # catch_lag_S0ROC_1518 = mean(lag_S0_ROC_1518)
+  # catch_lag_SsROC_1518 = mean(lag_Ss_ROC_1518)
+  # 
   
   #### 2) importance of baseflow in runoff generation process ##### 
   
@@ -394,12 +383,13 @@ catch_mining_framework = function(catid, cormethod = "spearman",
     R_SMAPROC = catch_cor_SMAPROC, lag1_SMAPROC = catch_lag1_SMAPROC, 
     
     ### Routing impact + forcing control 
-    acf1_Q = acf1_Q_9418, acf1_Q_1518 = acf1_Q_1518, 
+    # acf1_Q = acf1_Q_9418, acf1_Q_1518 = acf1_Q_1518, 
+    # 
+    # R_Qrain = catch_cor_RQ, lag1_Qrain = catch_lag1_RQ, 
+    # lag2_Qrain = catch_lag2_RQ,lag3_Qrain = catch_lag3_RQ, 
+    # 
     
-    R_Qrain = catch_cor_RQ, lag1_Qrain = catch_lag1_RQ, 
-    lag2_Qrain = catch_lag2_RQ,lag3_Qrain = catch_lag3_RQ, 
-    
-    ## baseflow contribution 
+    #### baseflow contribution 
     BFI_9418 = BFI_9418, BFI_1518 = BFI_1518, 
     
     ## Modelled connection between SM state and Q
@@ -408,11 +398,11 @@ catch_mining_framework = function(catid, cormethod = "spearman",
     lag1_S0Qsim = catch_lag_S0Q_9418,  lag1_S0Qsim_1518 = catch_lag_S0Q_1518,
     lag1_SsQsim = catch_lag_SsQ_9418,  lag1_SsQsim_1518 = catch_lag_SsQ_1518,
     
-    R_S0ROC = catch_cor_S0ROC_9418,     R_S0ROC_1518 = catch_cor_S0ROC_1518,
-    R_SsROC = catch_cor_SsROC_9418,     R_SsROC_1518 = catch_cor_SsROC_1518,
-    lag1_S0ROC = catch_lag_S0ROC_9418,  lag1_S0ROC_1518 = catch_lag_S0ROC_1518,
-    lag1_SsROC = catch_lag_SsROC_9418,  lag1_SsROC_1518 = catch_lag_SsROC_1518,
-    
+    # R_S0ROC = catch_cor_S0ROC_9418,     R_S0ROC_1518 = catch_cor_S0ROC_1518,
+    # R_SsROC = catch_cor_SsROC_9418,     R_SsROC_1518 = catch_cor_SsROC_1518,
+    # lag1_S0ROC = catch_lag_S0ROC_9418,  lag1_S0ROC_1518 = catch_lag_S0ROC_1518,
+    # lag1_SsROC = catch_lag_SsROC_9418,  lag1_SsROC_1518 = catch_lag_SsROC_1518,
+    # 
     ## importance of baseflow and saturation excess (correctable)
     QG_prop = catch_QG_prop_9418, QG_prop_1518 = catch_QG_prop_1518,
     SE_prop = catch_SE_prop_9418,  SE_prop_1518 = catch_SE_prop_1518,
